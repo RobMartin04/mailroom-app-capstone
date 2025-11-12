@@ -15,6 +15,9 @@ This system will serve as a centralized platform for tracking package arrivals, 
 What: A full-stack web app that enables campus mailroom employees to efficiently log, track, and manage packages received for students and staff.
 Who: Mailroom staff, student workers, and administrators overseeing campus postal operations.
 Value: Reduces confusion, lost packages, and communication delays by providing a real-time, digital workflow from intake to pickup.
+## Primary Metrics:
+Achieve 90% positive feedback from mailroom staff in post-deployment surveys.
+Reach 100% adoption rate among mailroom employees within the first semester.
 
 # User Story 😀
 
