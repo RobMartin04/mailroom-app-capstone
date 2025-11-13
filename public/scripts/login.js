@@ -88,8 +88,15 @@ document.addEventListener("DOMContentLoaded", () => {
     errorMessage.textContent = message
     errorMessage.classList.add("show")
 
-    setTimeout(() => {
-      errorMessage.classList.remove("show")
-    }, 4000)
-  }
+	function redirectToDashboard(userType) {
+		window.location.href = userType === "worker" ? "worker-dashboard.html" : "student-dashboard.html"
+	}
+
+	function showError(message) {
+		const el = document.getElementById("errorMessage")
+		if (!el) return
+		el.textContent = message
+		el.classList.add("show")
+		setTimeout(() => el.classList.remove("show"), 4000)
+	}
 })
