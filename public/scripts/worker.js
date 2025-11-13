@@ -124,7 +124,7 @@ window.filterRecipients = () => {
   displayRecipients(filtered)
 }
 
-window.showSection = (sectionName, event) => {
+window.showSection = (sectionName) => {
   // Hide all sections
   document.querySelectorAll(".content-section").forEach((section) => {
     section.classList.remove("active")
@@ -138,8 +138,18 @@ window.showSection = (sectionName, event) => {
   // Show selected section
   document.getElementById(sectionName + "Section").classList.add("active")
 
-  // Add active class to clicked button
-  event.target.closest(".nav-btn").classList.add("active")
+  // Add active class to the correct button based on section name
+  const buttons = document.querySelectorAll(".nav-btn")
+  buttons.forEach((btn) => {
+    const buttonText = btn.textContent.trim().toLowerCase()
+    if (
+      (sectionName === "packages" && buttonText.includes("packages")) ||
+      (sectionName === "recipients" && buttonText.includes("recipients")) ||
+      (sectionName === "scan" && buttonText.includes("scan"))
+    ) {
+      btn.classList.add("active")
+    }
+  })
 }
 
 window.scanPackage = async (event) => {
