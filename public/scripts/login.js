@@ -62,8 +62,12 @@ Object.entries(loginConfig).forEach(([type, cfg]) => {
 	function showError(message) {
 		const el = document.getElementById("errorMessage")
 		if (!el) return
-		el.textContent = message
-		el.classList.add("show")
-		setTimeout(() => el.classList.remove("show"), 4000)
+		el.innerHTML = `
+			<div class="alert alert-danger alert-dismissible fade show" role="alert">
+				${message}
+				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+			</div>
+		`
+		setTimeout(() => (el.innerHTML = ""), 5000)
 	}
 })

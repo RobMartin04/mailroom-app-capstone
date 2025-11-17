@@ -56,19 +56,19 @@ function displayPackages(packagesToDisplay) {
             <td>${pkg.mailbox}</td>
             <td><span class="status-badge status-${pkg.status.toLowerCase().replace(" ", "-")}">${pkg.status}</span></td>
             <td>
-                <div class="action-buttons">
+                <div class="action-buttons d-flex gap-2 flex-wrap">
                     ${
                       pkg.status === "Checked In"
                         ? `
-                        <button class="btn btn-success" onclick="checkoutPackage(${pkg.id})">Check Out</button>
-                        <button class="btn btn-warning" onclick="printSlip(${pkg.id})">Print Slip</button>
-                        <button class="btn btn-primary" onclick="emailRecipient(${pkg.id})">Email</button>
+                        <button class="btn btn-success btn-sm" onclick="checkoutPackage(${pkg.id})">Check Out</button>
+                        <button class="btn btn-warning btn-sm" onclick="printSlip(${pkg.id})">Print Slip</button>
+                        <button class="btn btn-primary btn-sm" onclick="emailRecipient(${pkg.id})">Email</button>
                     `
                         : `
-                        <span style="color: #28a745;">Picked Up</span>
+                        <span class="text-success fw-bold">Picked Up</span>
                     `
                     }
-                    <button class="btn btn-danger" onclick="deletePackage(${pkg.id})">Delete</button>
+                    <button class="btn btn-danger btn-sm" onclick="deletePackage(${pkg.id})">Delete</button>
                 </div>
             </td>
         `
@@ -94,7 +94,7 @@ function displayRecipients(recipientsToDisplay) {
             <td>${recipient.mailbox}</td>
             <td>${recipient.email}</td>
             <td>
-                <button class="btn btn-danger" onclick="deleteRecipient(${recipient.id})">Remove</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRecipient(${recipient.id})">Remove</button>
             </td>
         `
     tbody.appendChild(row)
@@ -182,12 +182,18 @@ window.scanPackage = async (event) => {
 
 function showScanMessage(message, type) {
   const messageDiv = document.getElementById("scanMessage")
-  messageDiv.textContent = message
-  messageDiv.className = `scan-message ${type}`
+  const alertClass = type === "success" ? "alert-success" : "alert-danger"
+
+  messageDiv.innerHTML = `
+    <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  `
 
   setTimeout(() => {
-    messageDiv.className = "scan-message"
-  }, 3000)
+    messageDiv.innerHTML = ""
+  }, 5000)
 }
 
 window.checkoutPackage = async (packageId) => {
@@ -257,11 +263,16 @@ window.emailRecipient = async (packageId) => {
 }
 
 window.showAddRecipientModal = () => {
-  document.getElementById("addRecipientModal").classList.add("show")
+  const modal = new bootstrap.Modal(document.getElementById("addRecipientModal"))
+  modal.show()
 }
 
 window.closeAddRecipientModal = () => {
-  document.getElementById("addRecipientModal").classList.remove("show")
+  const modalElement = document.getElementById("addRecipientModal")
+  const modal = bootstrap.Modal.getInstance(modalElement)
+  if (modal) {
+    modal.hide()
+  }
   document.getElementById("addRecipientForm").reset()
 }
 
@@ -318,15 +329,14 @@ function formatDate(dateString) {
 }
 
 window.logout = () => {
-  window.apiClient.clearToken()
+  // Clear all auth data
+  if (window.apiClient) {
+    window.apiClient.clearToken()
+  }
+  localStorage.removeItem("authToken")
   localStorage.removeItem("currentUser")
   localStorage.removeItem("userType")
-  window.location.href = "index.html"
-}
 
-document.addEventListener("click", (event) => {
-  const modal = document.getElementById("addRecipientModal")
-  if (event.target === modal) {
-    window.closeAddRecipientModal()
-  }
-})
+  // Redirect to login page
+  window.location.href = "/index.html"
+}

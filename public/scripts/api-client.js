@@ -121,3 +121,4 @@ class APIClient {
 
 // Create global API client instance
 const apiClient = new APIClient()
+window.apiClient = apiClient

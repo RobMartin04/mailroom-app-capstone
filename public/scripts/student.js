@@ -39,39 +39,42 @@ function displayUserPackages(packagesToDisplay) {
   }
 
   noPackagesMessage.classList.remove("show")
-  container.style.display = "grid"
+  container.style.display = "flex"
 
   packagesToDisplay.forEach((pkg) => {
-    const card = document.createElement("div")
-    card.className = "package-card"
-    card.innerHTML = `
-            <div class="package-header">
-                <div class="package-icon">📦</div>
-                <div class="package-info">
-                    <h3>Package Ready</h3>
-                    <div class="package-date">${formatDate(pkg.check_in_date)}</div>
-                </div>
-            </div>
-            <div class="package-details">
-                <div class="detail-row">
-                    <span class="detail-label">Tracking Code:</span>
-                    <span class="detail-value">${pkg.tracking_code}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Mailbox:</span>
-                    <span class="detail-value">#${pkg.mailbox}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Location:</span>
-                    <span class="detail-value">UNA Mailroom</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="detail-value" style="color: #00A3E0;">${pkg.status}</span>
-                </div>
-            </div>
-        `
-    container.appendChild(card)
+    const col = document.createElement("div")
+    col.className = "col-12 col-md-6 col-lg-4 col-xl-3"
+
+    col.innerHTML = `
+      <div class="package-card h-100">
+        <div class="package-header">
+          <div class="package-icon">📦</div>
+          <div class="package-info">
+            <h3>Package Ready</h3>
+            <div class="package-date">${formatDate(pkg.check_in_date)}</div>
+          </div>
+        </div>
+        <div class="package-details">
+          <div class="detail-row">
+            <span class="detail-label">Tracking Code:</span>
+            <span class="detail-value">${pkg.tracking_code}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Mailbox:</span>
+            <span class="detail-value">#${pkg.mailbox}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Location:</span>
+            <span class="detail-value">UNA Mailroom</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value text-primary">${pkg.status}</span>
+          </div>
+        </div>
+      </div>
+    `
+    container.appendChild(col)
   })
 }
 
@@ -91,8 +94,14 @@ function formatDate(dateString) {
 }
 
 window.logout = () => {
-  window.apiClient.clearToken()
+  // Clear all auth data
+  if (window.apiClient) {
+    window.apiClient.clearToken()
+  }
+  localStorage.removeItem("authToken")
   localStorage.removeItem("currentUser")
   localStorage.removeItem("userType")
-  window.location.href = "index.html"
+
+  // Redirect to login page
+  window.location.href = "/index.html"
 }
