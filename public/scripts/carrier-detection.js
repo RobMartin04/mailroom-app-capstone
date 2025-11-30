@@ -51,16 +51,6 @@ function detectCarrier(trackingNumber) {
             logoUrl: 'https://logo.clearbit.com/fedex.com'
         };
     }
-    // SmartPost - starts with 92 or 94
-    if (/^(92|94)\d{20}$/.test(cleaned)) {
-        return {
-            name: 'FedEx',
-            code: 'fedex',
-            color: '#4d148c',
-            trackUrl: `https://www.fedex.com/fedextrack/?trknbr=${cleaned}`,
-            logoUrl: 'https://logo.clearbit.com/fedex.com'
-        };
-    }
 
     // USPS patterns
     // 20 digits
@@ -104,17 +94,6 @@ function detectCarrier(trackingNumber) {
         };
     }
 
-    // DHL - 10 or 11 digits
-    if (/^\d{10,11}$/.test(cleaned)) {
-        return {
-            name: 'DHL',
-            code: 'dhl',
-            color: '#ffcc00',
-            trackUrl: `https://www.dhl.com/en/express/tracking.html?AWB=${cleaned}`,
-            logoUrl: 'https://logo.clearbit.com/dhl.com'
-        };
-    }
-
     // Amazon Logistics - starts with TBA
     if (/^TBA\d{12}$/i.test(cleaned)) {
         return {
@@ -123,28 +102,6 @@ function detectCarrier(trackingNumber) {
             color: '#ff9900',
             trackUrl: `https://track.amazon.com/tracking/${cleaned}`,
             logoUrl: 'https://logo.clearbit.com/amazon.com'
-        };
-    }
-
-    // OnTrac - starts with C followed by 14 digits
-    if (/^C\d{14}$/i.test(cleaned)) {
-        return {
-            name: 'OnTrac',
-            code: 'ontrac',
-            color: '#00447c',
-            trackUrl: `https://www.ontrac.com/tracking/?number=${cleaned}`,
-            logoUrl: 'https://logo.clearbit.com/ontrac.com'
-        };
-    }
-
-    // LaserShip - starts with L followed by 9 digits
-    if (/^L[A-Z]\d{8}$/i.test(cleaned)) {
-        return {
-            name: 'LaserShip',
-            code: 'lasership',
-            color: '#d71920',
-            trackUrl: `https://www.lasership.com/track/${cleaned}`,
-            logoUrl: 'https://logo.clearbit.com/lasership.com'
         };
     }
 
@@ -186,10 +143,7 @@ function getCarrierIcon(carrierCode) {
         'ups': '📦',
         'fedex': '🚚',
         'usps': '✉️',
-        'dhl': '✈️',
         'amazon': '📦',
-        'ontrac': '🚛',
-        'lasership': '🚛',
         'unknown': '❓'
     };
     return icons[carrierCode] || '📦';

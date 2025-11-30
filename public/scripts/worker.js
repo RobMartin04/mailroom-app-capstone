@@ -13,6 +13,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.getElementById("workerName").textContent = currentUser.username
 
+  // Initialize permissions
+  if (window.permissions) {
+    await window.permissions.initialize()
+    window.permissions.applyPermissionsToUI()
+  }
+
   await window.loadPackages()
   await window.loadRecipients()
   populateRecipientSelect()

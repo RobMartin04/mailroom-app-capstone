@@ -6,6 +6,9 @@ import nodemailer from 'nodemailer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import uspsAPI from './services/usps-api.js';
+import { requirePermission, requireWorker } from './middleware/authorization.js';
+import { isConfigured as isDbConfigured } from './services/database.js';
+import * as db from './services/db-operations.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,25 +52,173 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Worker authorization middleware
-function authorizeWorker(req, res, next) {
-  if (req.user.type !== 'worker') {
-    return res.status(403).json({ error: 'Worker access required' });
-  }
-  next();
-}
+// Endpoint to get user permissions (for frontend)
+app.get('/api/auth/permissions', authenticateToken, (req, res) => {
+  const userType = req.user.type;
+  const permissions = {
+    packages: {
+      create: userType === 'worker',
+      read: true, // Both can read (workers: all, students: own)
+      update: userType === 'worker',
+      delete: userType === 'worker'
+    },
+    recipients: {
+      create: userType === 'worker',
+      read: userType === 'worker',
+      update: userType === 'worker',
+      delete: userType === 'worker'
+    },
+    userType: userType
+  };
+  res.json(permissions);
+});
 
 // ==================== AUTH ROUTES ====================
 
-// Login endpoint - TODO: Add database integration
+// Register endpoint
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password, userType, email, fullName, lNumber } = req.body;
+
+    // Validate required fields
+    if (!username || !password || !userType) {
+      return res.status(400).json({ error: 'Username, password, and userType are required' });
+    }
+
+    // Validate userType
+    if (!['student', 'worker'].includes(userType)) {
+      return res.status(400).json({ error: 'User type must be either "student" or "worker"' });
+    }
+
+    // Students must have L number
+    if (userType === 'student' && !lNumber) {
+      return res.status(400).json({ error: 'L number is required for students' });
+    }
+
+    // Check if database is configured
+    if (!isDbConfigured()) {
+      return res.status(503).json({
+        error: 'Database not configured',
+        message: 'Please configure database environment variables'
+      });
+    }
+
+    // Check if username already exists
+    const existingUser = await db.getUserByUsername(username);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // Check if L number already exists (for students)
+    if (userType === 'student' && lNumber) {
+      const existingLNumber = await db.getUserByLNumber(lNumber);
+      if (existingLNumber) {
+        return res.status(400).json({ error: 'L number already registered' });
+      }
+    }
+
+    // Hash password
+    const passwordHash = await bcryptjs.hash(password, 10);
+
+    // Create user
+    const newUser = await db.createUser({
+      username,
+      passwordHash,
+      type: userType,
+      email: email || null,
+      fullName: fullName || null,
+      lNumber: userType === 'student' ? lNumber : null
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: newUser.id,
+        username: newUser.username,
+        type: newUser.type,
+        lNumber: newUser.l_number
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        type: newUser.type,
+        email: newUser.email,
+        fullName: newUser.full_name,
+        lNumber: newUser.l_number
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Login endpoint
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { username, password, userType } = req.body;
+    const { email, password, userType } = req.body;
 
-    // TODO: Query database for user
-    // const user = await db.get('SELECT * FROM users WHERE username = ? AND type = ?', [username, userType]);
+    if (!email || !password || !userType) {
+      return res.status(400).json({ error: 'Email, password, and userType are required' });
+    }
 
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    // Check if database is configured
+    if (!isDbConfigured()) {
+      return res.status(503).json({
+        error: 'Database not configured',
+        message: 'Please configure database environment variables'
+      });
+    }
+
+    // Get user from database by email
+    const user = await db.getUserByEmail(email);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Check if user type matches
+    if (user.type !== userType) {
+      return res.status(401).json({ error: 'Invalid user type for this account' });
+    }
+
+    // Verify password
+    const passwordMatch = await bcryptjs.compare(password, user.password_hash);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        type: user.type,
+        lNumber: user.l_number
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        type: user.type,
+        email: user.email,
+        fullName: user.full_name,
+        lNumber: user.l_number
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
@@ -75,37 +226,67 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ==================== PACKAGE ROUTES ====================
+// CRUD Matrix for Packages:
+// - Students: READ (own packages only)
+// - Workers: CREATE, READ (all), UPDATE, DELETE
 
-// Get all packages (worker only) - TODO: Add database integration
-app.get('/api/packages', authenticateToken, authorizeWorker, async (req, res) => {
+// Get all packages (worker only)
+app.get('/api/packages', authenticateToken, requireWorker, async (req, res) => {
   try {
-    // TODO: Query database for packages
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const packages = await db.getAllPackages();
+    res.json(packages);
   } catch (error) {
     console.error('Error fetching packages:', error);
     res.status(500).json({ error: 'Failed to fetch packages' });
   }
 });
 
-// Get packages for specific user (student/staff) - TODO: Add database integration
+// Get packages for specific user (student/staff) - READ OWN
 app.get('/api/packages/my-packages', authenticateToken, async (req, res) => {
   try {
-    // TODO: Query database for user's packages
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const userLNumber = req.user.lNumber;
+
+    if (!userLNumber) {
+      return res.status(400).json({ error: 'User L number not found' });
+    }
+
+    const packages = await db.getPackagesByLNumber(userLNumber);
+    res.json(packages);
   } catch (error) {
     console.error('Error fetching user packages:', error);
     res.status(500).json({ error: 'Failed to fetch packages' });
   }
 });
 
-// Check in new package (worker only) - TODO: Add database integration
-app.post('/api/packages', authenticateToken, authorizeWorker, async (req, res) => {
+// Check in new package (worker only) - CREATE
+app.post('/api/packages', authenticateToken, requireWorker, async (req, res) => {
   try {
     const { trackingCode, recipientId } = req.body;
 
+    if (!trackingCode || !recipientId) {
+      return res.status(400).json({ error: 'Tracking code and recipient ID are required' });
+    }
+
+    // Check if package already exists
+    const existingPackage = await db.getPackageByTrackingCode(trackingCode);
+    if (existingPackage) {
+      return res.status(400).json({ error: 'Package with this tracking code already exists' });
+    }
+
+    // Get recipient details
+    const recipient = await db.getRecipientById(recipientId);
+    if (!recipient) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    // Detect carrier from tracking code
+    const carrier = uspsAPI.isUSPSTrackingNumber(trackingCode) ? 'USPS' : 'Other';
+
     // Validate tracking number with USPS API if configured and it's a USPS package
     let trackingInfo = null;
-    if (uspsAPI.isConfigured() && uspsAPI.isUSPSTrackingNumber(trackingCode)) {
+    let carrierData = {};
+
+    if (uspsAPI.isConfigured() && carrier === 'USPS') {
       console.log(`Validating USPS tracking number: ${trackingCode}`);
       trackingInfo = await uspsAPI.trackPackage(trackingCode);
 
@@ -118,41 +299,100 @@ app.post('/api/packages', authenticateToken, authorizeWorker, async (req, res) =
       }
 
       console.log(`USPS tracking validated: ${trackingInfo.status}`);
+      carrierData = trackingInfo;
     }
 
-    // TODO: Implement package check-in with database
-    // When implementing database, save trackingInfo data:
-    // - trackingInfo.service (mail class/service type)
-    // - trackingInfo.status (current status)
-    // - trackingInfo.deliveryDate (expected delivery)
-
-    res.status(501).json({
-      error: 'Database not configured. Backend team needs to implement.',
-      trackingValidated: trackingInfo?.success || false,
-      trackingData: trackingInfo || null
+    // Create package in database
+    const newPackage = await db.createPackage({
+      trackingCode,
+      carrier,
+      recipientId: recipient.id,
+      recipientName: recipient.name,
+      lNumber: recipient.l_number,
+      mailbox: recipient.mailbox,
+      carrierStatus: trackingInfo?.status || null,
+      serviceType: trackingInfo?.service || null,
+      expectedDelivery: trackingInfo?.deliveryDate || null,
+      lastLocation: trackingInfo?.lastLocation || null,
+      carrierData
     });
+
+    // Send email notification to recipient
+    await sendPackageNotification(recipient, trackingCode);
+
+    res.status(201).json(newPackage);
   } catch (error) {
     console.error('Error checking in package:', error);
     res.status(500).json({ error: 'Failed to check in package' });
   }
 });
 
-// Check out package (worker only) - TODO: Add database integration
-app.patch('/api/packages/:id/checkout', authenticateToken, authorizeWorker, async (req, res) => {
+// Update package (worker only) - UPDATE
+app.put('/api/packages/:id', authenticateToken, requireWorker, async (req, res) => {
   try {
-    // TODO: Update package status in database
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // Check if package exists
+    const existingPackage = await db.getPackageById(id);
+    if (!existingPackage) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+
+    // Update package
+    const updatedPackage = await db.updatePackage(id, updateData);
+
+    res.json(updatedPackage);
+  } catch (error) {
+    console.error('Error updating package:', error);
+    res.status(500).json({ error: 'Failed to update package' });
+  }
+});
+
+// Check out package (worker only) - UPDATE (specific action)
+app.patch('/api/packages/:id/checkout', authenticateToken, requireWorker, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if package exists
+    const existingPackage = await db.getPackageById(id);
+    if (!existingPackage) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+
+    if (existingPackage.status === 'Picked Up') {
+      return res.status(400).json({ error: 'Package already picked up' });
+    }
+
+    // Check out package
+    const updatedPackage = await db.checkoutPackage(id);
+
+    res.json(updatedPackage);
   } catch (error) {
     console.error('Error checking out package:', error);
     res.status(500).json({ error: 'Failed to check out package' });
   }
 });
 
-// Delete package (worker only) - TODO: Add database integration
-app.delete('/api/packages/:id', authenticateToken, authorizeWorker, async (req, res) => {
+// Delete package (worker only) - DELETE
+app.delete('/api/packages/:id', authenticateToken, requireWorker, async (req, res) => {
   try {
-    // TODO: Delete package from database
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const { id } = req.params;
+
+    // Check if package exists
+    const existingPackage = await db.getPackageById(id);
+    if (!existingPackage) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+
+    // Delete package
+    const deleted = await db.deletePackage(id);
+
+    if (deleted) {
+      res.json({ message: 'Package deleted successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete package' });
+    }
   } catch (error) {
     console.error('Error deleting package:', error);
     res.status(500).json({ error: 'Failed to delete package' });
@@ -162,7 +402,7 @@ app.delete('/api/packages/:id', authenticateToken, authorizeWorker, async (req, 
 // ==================== USPS TRACKING ROUTES ====================
 
 // Validate and track a USPS package (worker only)
-app.post('/api/tracking/usps/validate', authenticateToken, authorizeWorker, async (req, res) => {
+app.post('/api/tracking/usps/validate', authenticateToken, requireWorker, async (req, res) => {
   try {
     const { trackingNumber } = req.body;
 
@@ -221,7 +461,7 @@ app.get('/api/tracking/usps/check-format/:trackingNumber', (req, res) => {
 });
 
 // Get USPS API configuration status
-app.get('/api/tracking/usps/status', authenticateToken, authorizeWorker, (req, res) => {
+app.get('/api/tracking/usps/status', authenticateToken, requireWorker, (req, res) => {
   res.json({
     configured: uspsAPI.isConfigured(),
     message: uspsAPI.isConfigured()
@@ -231,36 +471,103 @@ app.get('/api/tracking/usps/status', authenticateToken, authorizeWorker, (req, r
 });
 
 // ==================== RECIPIENT ROUTES ====================
+// CRUD Matrix for Recipients:
+// - Students: NO ACCESS
+// - Workers: CREATE, READ, UPDATE, DELETE
 
-// Get all recipients (worker only) - TODO: Add database integration
-app.get('/api/recipients', authenticateToken, authorizeWorker, async (req, res) => {
+// Get all recipients (worker only) - READ
+app.get('/api/recipients', authenticateToken, requireWorker, async (req, res) => {
   try {
-    // TODO: Query database for recipients
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const recipients = await db.getAllRecipients();
+    res.json(recipients);
   } catch (error) {
     console.error('Error fetching recipients:', error);
     res.status(500).json({ error: 'Failed to fetch recipients' });
   }
 });
 
-// Add new recipient (worker only) - TODO: Add database integration
-app.post('/api/recipients', authenticateToken, authorizeWorker, async (req, res) => {
+// Add new recipient (worker only) - CREATE
+app.post('/api/recipients', authenticateToken, requireWorker, async (req, res) => {
   try {
     const { name, lNumber, type, mailbox, email } = req.body;
 
-    // TODO: Insert recipient into database
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    if (!name || !lNumber || !type || !mailbox || !email) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check if recipient with this L number already exists
+    const existingRecipient = await db.getRecipientByLNumber(lNumber);
+    if (existingRecipient) {
+      return res.status(400).json({ error: 'Recipient with this L number already exists' });
+    }
+
+    // Create recipient
+    const newRecipient = await db.createRecipient({
+      name,
+      lNumber,
+      type,
+      mailbox,
+      email
+    });
+
+    res.status(201).json(newRecipient);
   } catch (error) {
     console.error('Error adding recipient:', error);
     res.status(500).json({ error: 'Failed to add recipient' });
   }
 });
 
-// Delete recipient (worker only) - TODO: Add database integration
-app.delete('/api/recipients/:id', authenticateToken, authorizeWorker, async (req, res) => {
+// Update recipient (worker only) - UPDATE
+app.put('/api/recipients/:id', authenticateToken, requireWorker, async (req, res) => {
   try {
-    // TODO: Delete recipient from database
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const { id } = req.params;
+    const { name, lNumber, type, mailbox, email } = req.body;
+
+    if (!name || !lNumber || !type || !mailbox || !email) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check if recipient exists
+    const existingRecipient = await db.getRecipientById(id);
+    if (!existingRecipient) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    // Update recipient
+    const updatedRecipient = await db.updateRecipient(id, {
+      name,
+      lNumber,
+      type,
+      mailbox,
+      email
+    });
+
+    res.json(updatedRecipient);
+  } catch (error) {
+    console.error('Error updating recipient:', error);
+    res.status(500).json({ error: 'Failed to update recipient' });
+  }
+});
+
+// Delete recipient (worker only) - DELETE
+app.delete('/api/recipients/:id', authenticateToken, requireWorker, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if recipient exists
+    const existingRecipient = await db.getRecipientById(id);
+    if (!existingRecipient) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    // Delete recipient
+    const deleted = await db.deleteRecipient(id);
+
+    if (deleted) {
+      res.json({ message: 'Recipient deleted successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete recipient' });
+    }
   } catch (error) {
     console.error('Error deleting recipient:', error);
     res.status(500).json({ error: 'Failed to delete recipient' });
@@ -308,11 +615,27 @@ async function sendPackageNotification(recipient, trackingCode) {
   }
 }
 
-// Email notification endpoint (worker only) - TODO: Add database integration
-app.post('/api/packages/:id/notify', authenticateToken, authorizeWorker, async (req, res) => {
+// Email notification endpoint (worker only)
+app.post('/api/packages/:id/notify', authenticateToken, requireWorker, async (req, res) => {
   try {
-    // TODO: Get package from database and send notification
-    res.status(501).json({ error: 'Database not configured. Backend team needs to implement.' });
+    const { id } = req.params;
+
+    // Get package from database
+    const pkg = await db.getPackageById(id);
+    if (!pkg) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+
+    // Get recipient details
+    const recipient = await db.getRecipientById(pkg.recipient_id);
+    if (!recipient) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    // Send notification
+    await sendPackageNotification(recipient, pkg.tracking_code);
+
+    res.json({ message: 'Notification sent successfully' });
   } catch (error) {
     console.error('Error sending notification:', error);
     res.status(500).json({ error: 'Failed to send notification' });

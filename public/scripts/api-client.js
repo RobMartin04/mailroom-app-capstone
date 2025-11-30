@@ -53,10 +53,23 @@ class APIClient {
   }
 
   // Auth endpoints
-  async login(username, password, userType) {
+  async register(username, password, userType, email, fullName, lNumber) {
+    const data = await this.request("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, password, userType, email, fullName, lNumber }),
+    })
+
+    if (data.token) {
+      this.setToken(data.token)
+    }
+
+    return data
+  }
+
+  async login(email, password, userType) {
     const data = await this.request("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ username, password, userType }),
+      body: JSON.stringify({ email, password, userType }),
     })
 
     if (data.token) {
@@ -79,6 +92,13 @@ class APIClient {
     return this.request("/api/packages", {
       method: "POST",
       body: JSON.stringify({ trackingCode, recipientId }),
+    })
+  }
+
+  async updatePackage(packageId, packageData) {
+    return this.request(`/api/packages/${packageId}`, {
+      method: "PUT",
+      body: JSON.stringify(packageData),
     })
   }
 
@@ -112,10 +132,22 @@ class APIClient {
     })
   }
 
+  async updateRecipient(recipientId, recipientData) {
+    return this.request(`/api/recipients/${recipientId}`, {
+      method: "PUT",
+      body: JSON.stringify(recipientData),
+    })
+  }
+
   async deleteRecipient(recipientId) {
     return this.request(`/api/recipients/${recipientId}`, {
       method: "DELETE",
     })
+  }
+
+  // Get user permissions
+  async getPermissions() {
+    return this.request("/api/auth/permissions")
   }
 
   // USPS Tracking endpoints
