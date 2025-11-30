@@ -13,10 +13,14 @@ document.addEventListener("DOMContentLoaded", () => {
 		document.querySelectorAll(".tab-btn").forEach((btn) => btn.classList.remove("active"))
 		document.querySelectorAll(".login-form").forEach((form) => form.classList.remove("active"))
 		const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`)
-		const formId = tabName === "student" ? "studentLoginForm" : "workerLoginForm"
+
+		let formId
+		if (tabName === "student") formId = "studentLoginForm"
+		else if (tabName === "worker") formId = "workerLoginForm"
+
 		if (btn) btn.classList.add("active")
 		document.getElementById(formId)?.classList.add("active")
-		document.getElementById("errorMessage")?.classList.remove("show")
+		document.getElementById("errorMessage").innerHTML = ""
 	}
 	tabButtons.forEach((btn) => {
 		btn.addEventListener("click", () => setActiveTab(btn.dataset.tab))
@@ -26,34 +30,43 @@ document.addEventListener("DOMContentLoaded", () => {
 	const loginConfig = {
 		student: {
 			form: "#studentLoginForm",
-			userField: "#studentId",
+			emailField: "#studentEmail",
 			passField: "#studentPassword",
 		},
 		worker: {
 			form: "#workerLoginForm",
-			userField: "#workerEmail",
+			emailField: "#workerEmail",
 			passField: "#workerPassword",
 		},
 	}
 
-// Allow any credentials to log in (dev bypass)
-Object.entries(loginConfig).forEach(([type, cfg]) => {
-	const form = document.querySelector(cfg.form)
-	if (!form) return
-	form.addEventListener("submit", async (e) => {
-		e.preventDefault()
-		const username = document.querySelector(cfg.userField)?.value?.trim() || ""
-		const password = document.querySelector(cfg.passField)?.value || ""
-		// Bypass authentication: accept any credentials
-		localStorage.setItem("authToken", "dev-allow-all")
-		localStorage.setItem("userType", type)
-		localStorage.setItem(
-			"currentUser",
-			JSON.stringify({ type, username, email: username, devBypass: true })
-		)
-		redirectToDashboard(type)
+	// Login form handlers (with real authentication)
+	Object.entries(loginConfig).forEach(([type, cfg]) => {
+		const form = document.querySelector(cfg.form)
+		if (!form) return
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault()
+			const email = document.querySelector(cfg.emailField)?.value?.trim() || ""
+			const password = document.querySelector(cfg.passField)?.value || ""
+
+			if (!email || !password) {
+				showError("Please enter email and password")
+				return
+			}
+
+			try {
+				const response = await window.apiClient.login(email, password, type)
+
+				// Store user info
+				localStorage.setItem("userType", type)
+				localStorage.setItem("currentUser", JSON.stringify(response.user))
+
+				redirectToDashboard(type)
+			} catch (error) {
+				showError(error.message || "Login failed. Please check your credentials.")
+			}
+		})
 	})
-})
 
 	function redirectToDashboard(userType) {
 		window.location.href = userType === "worker" ? "worker-dashboard.html" : "student-dashboard.html"
