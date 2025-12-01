@@ -61,6 +61,12 @@
                     <span class="btn-icon">🔐</span>
                     Sign In
                 </button>
+
+                <div class="text-center mt-3">
+                    <a href="#" id="showRegisterFromStudent" class="text-decoration-none">
+                        Don't have an account? <strong>Create Account</strong>
+                    </a>
+                </div>
             </form>
             
             <!-- Worker Login Form -->
@@ -93,6 +99,99 @@
                     <span class="btn-icon">🔐</span>
                     Sign In
                 </button>
+
+                <div class="text-center mt-3">
+                    <a href="#" id="showRegisterFromWorker" class="text-decoration-none">
+                        Don't have an account? <strong>Create Account</strong>
+                    </a>
+                </div>
+            </form>
+
+            <!-- Registration Form -->
+            <form id="registerForm" class="login-form">
+                <div class="mb-3">
+                    <label for="registerUserType" class="form-label">User Type</label>
+                    <select id="registerUserType" name="registerUserType" class="form-control" required>
+                        <option value="">Select user type</option>
+                        <option value="student">Student</option>
+                        <option value="worker">Worker</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="registerEmail" class="form-label">University Email</label>
+                    <input
+                        type="email"
+                        id="registerEmail"
+                        name="registerEmail"
+                        class="form-control"
+                        placeholder="yourname@una.edu"
+                        required
+                    >
+                </div>
+
+                <div class="mb-3">
+                    <label for="registerFullName" class="form-label">Full Name</label>
+                    <input
+                        type="text"
+                        id="registerFullName"
+                        name="registerFullName"
+                        class="form-control"
+                        placeholder="Enter your full name"
+                        required
+                    >
+                </div>
+
+                <div class="mb-3" id="lNumberField" style="display: none;">
+                    <label for="registerLNumber" class="form-label">L Number</label>
+                    <input
+                        type="text"
+                        id="registerLNumber"
+                        name="registerLNumber"
+                        class="form-control"
+                        placeholder="L00123456"
+                        pattern="L\d{8}"
+                        title="L number must start with 'L' followed by 8 digits"
+                    >
+                    <small class="form-text" style="color: #c4c9d4;">Format: L followed by 8 digits (e.g., L00123456)</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="registerPassword" class="form-label">Password</label>
+                    <input
+                        type="password"
+                        id="registerPassword"
+                        name="registerPassword"
+                        class="form-control"
+                        placeholder="Enter your password"
+                        required
+                        minlength="6"
+                    >
+                    <small class="form-text" style="color: #c4c9d4;">Minimum 6 characters</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="registerConfirmPassword" class="form-label">Confirm Password</label>
+                    <input
+                        type="password"
+                        id="registerConfirmPassword"
+                        name="registerConfirmPassword"
+                        class="form-control"
+                        placeholder="Confirm your password"
+                        required
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-success w-100">
+                    <span class="btn-icon">📝</span>
+                    Create Account
+                </button>
+
+                <div class="text-center mt-3">
+                    <a href="#" id="backToLogin" class="text-decoration-none">
+                        Already have an account? <strong>Sign In</strong>
+                    </a>
+                </div>
             </form>
 
             <div id="errorMessage" class="error-message mt-3"></div>

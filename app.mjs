@@ -79,12 +79,15 @@ app.get('/api/auth/permissions', authenticateToken, (req, res) => {
 // Register endpoint
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password, userType, email, fullName, lNumber } = req.body;
+    const { password, userType, email, fullName, lNumber } = req.body;
 
     // Validate required fields
-    if (!username || !password || !userType) {
-      return res.status(400).json({ error: 'Username, password, and userType are required' });
+    if (!email || !password || !userType) {
+      return res.status(400).json({ error: 'Email, password, and userType are required' });
     }
+
+    // Derive username from email (part before @)
+    const username = email.split('@')[0];
 
     // Validate userType
     if (!['student', 'worker'].includes(userType)) {
@@ -104,10 +107,10 @@ app.post('/api/auth/register', async (req, res) => {
       });
     }
 
-    // Check if username already exists
-    const existingUser = await db.getUserByUsername(username);
+    // Check if email already exists
+    const existingUser = await db.getUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: 'Email already registered' });
     }
 
     // Check if L number already exists (for students)

@@ -55,10 +55,15 @@ export async function createUser(userData) {
     type,
     email: email || null,
     full_name: fullName || null,
-    l_number: lNumber || null,
     created_at: new Date(),
     updated_at: new Date()
   };
+
+  // Only include l_number if it's provided (for students)
+  // This allows sparse index to work properly for workers
+  if (lNumber) {
+    newUser.l_number = lNumber;
+  }
 
   const result = await users.insertOne(newUser);
 
