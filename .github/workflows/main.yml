@@ -11,9 +11,9 @@ jobs:
     steps:
       - name: Deploy to GCP VM via SSH
         env:
-          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }} # Reference the private key stored in GitHub Secrets
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }} # Reference the private key stored in GitHub Secrets
         run: |
-          echo "$SSH_PRIVATE_KEY" > private_key.pem # Write the private key to a file
+          echo "$PRIVATE_KEY" > private_key.pem # Write the private key to a file
           chmod 600 private_key.pem # Set the appropriate permissions for the key file
 
           # Establish an SSH connection and execute commands on the remote server
