@@ -344,7 +344,7 @@ window.addRecipient = async (event) => {
 
   const newRecipient = {
     name: document.getElementById("recipientName").value,
-    lNumber: document.getElementById("recipientLNumber").value,
+    l_number: document.getElementById("recipientLNumber").value,
     type: document.getElementById("recipientType").value,
     mailbox: document.getElementById("recipientMailbox").value,
     email: document.getElementById("recipientEmail").value,
