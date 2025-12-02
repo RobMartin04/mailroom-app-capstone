@@ -15,8 +15,22 @@ function startScanner() {
 
     const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
+        qrbox: { width: 400, height: 100 }, // Wide and short for horizontal linear barcodes
+        aspectRatio: 1.777, // 16:9 aspect ratio
+        formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,    // Used by UPS, FedEx, USPS tracking
+            Html5QrcodeSupportedFormats.CODE_39,     // Used by FedEx, some USPS
+            Html5QrcodeSupportedFormats.CODE_93,     // Additional support
+            Html5QrcodeSupportedFormats.ITF,         // Interleaved 2 of 5 (USPS uses this)
+            Html5QrcodeSupportedFormats.CODABAR,     // USPS sometimes uses this
+            Html5QrcodeSupportedFormats.EAN_13,      // International packages
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E
+        ],
+        experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true  // Use native barcode detection if available
+        }
     };
 
     // Start scanning
@@ -26,6 +40,8 @@ function startScanner() {
         (decodedText, decodedResult) => {
             // Success callback - barcode scanned
             console.log(`Barcode detected: ${decodedText}`);
+            console.log('Barcode format:', decodedResult.result.format);
+            console.log('Full result:', decodedResult);
 
             // Fill the tracking code input
             document.getElementById('trackingCode').value = decodedText;
@@ -48,7 +64,11 @@ function startScanner() {
         },
         (errorMessage) => {
             // Error callback - usually just means no barcode detected yet
-            // You can ignore this or log it
+            // Only log unique errors to avoid console spam
+            if (!window.lastScanError || window.lastScanError !== errorMessage) {
+                console.log('Scanning...', errorMessage);
+                window.lastScanError = errorMessage;
+            }
         }
     ).then(() => {
         isScanning = true;
